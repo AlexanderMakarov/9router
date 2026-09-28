@@ -95,7 +95,7 @@ export function filterUsageForFormat(usage, targetFormat) {
       'cached_tokens', 'reasoning_tokens',
       'prompt_tokens_details', 'completion_tokens_details',
       'estimated',
-      // OpenRouter sends cost as a number; we normalize to { total } for OpenClaw.
+      // OpenRouter sends cost as a bare number; enrichUsageCost() keeps it one for clients.
       'cost'
     ]
   };
@@ -169,8 +169,14 @@ export function normalizeCostObject(cost) {
 }
 
 /**
- * Ensure usage.cost = { total } for clients (OpenClaw). Prefer upstream cost
- * (e.g. OpenRouter's usage.cost); otherwise estimate from MODEL_PRICING.
+ * Ensure client-facing usage.cost is a BARE NUMBER (USD), OpenRouter's own
+ * shape. Prefer upstream cost (OpenRouter's usage.cost); otherwise estimate
+ * from MODEL_PRICING.
+ *
+ * Must stay a number: OpenClaw's openai-completions transport reads it via
+ * applyProviderReportedUsageCost(usage, raw.cost), which ignores anything but
+ * a finite number. The earlier `{ total }` object was silently dropped there,
+ * so every OpenClaw turn recorded cost 0 (2026-09-28).
  *
  * @param {object} usage
  * @param {string} provider
@@ -191,10 +197,8 @@ export function enrichUsageCost(usage, provider, model) {
     }
   }
 
-  if (typeof total === "number" && Number.isFinite(total)) {
-    const prev = out.cost && typeof out.cost === "object" ? out.cost : {};
-    out.cost = { ...prev, total };
-  }
+  if (typeof total === "number" && Number.isFinite(total)) out.cost = total;
+  else delete out.cost;
   return out;
 }
 

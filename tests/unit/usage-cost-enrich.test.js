@@ -55,13 +55,34 @@ describe("extractUsage", () => {
 });
 
 describe("enrichUsageCost", () => {
+  // OpenClaw's openai-completions transport only accepts a finite NUMBER here
+  // (applyProviderReportedUsageCost); a { total } object is silently dropped.
+  it("emits the client cost as a bare number (OpenClaw contract)", () => {
+    const fromObject = enrichUsageCost(
+      { prompt_tokens: 10, completion_tokens: 2, cost: { total: 0.0042 } },
+      "openrouter",
+      "some/unpriced-model"
+    );
+    expect(fromObject.cost).toBe(0.0042);
+    expect(typeof fromObject.cost).toBe("number");
+  });
+
+  it("drops cost when neither upstream nor the table has a price", () => {
+    const out = enrichUsageCost(
+      { prompt_tokens: 10, completion_tokens: 2 },
+      "openrouter",
+      "some/unpriced-model"
+    );
+    expect(out.cost).toBeUndefined();
+  });
+
   it("prefers upstream OpenRouter cost over table estimate", () => {
     const out = enrichUsageCost(
       { prompt_tokens: 1000, completion_tokens: 100, cost: 0.0009 },
       "openrouter",
       "deepseek/deepseek-v4-flash-latest"
     );
-    expect(out.cost.total).toBe(0.0009);
+    expect(out.cost).toBe(0.0009);
   });
 
   it("estimates from MODEL_PRICING when cost is missing", () => {
@@ -71,7 +92,7 @@ describe("enrichUsageCost", () => {
       "z-ai/glm-5.3-flash"
     );
     // glm-5.3-flash input $0.15 / M
-    expect(out.cost.total).toBeCloseTo(0.15, 6);
+    expect(out.cost).toBeCloseTo(0.15, 6);
   });
 
   it("estimates deepseek-v4-flash-latest from table", () => {
@@ -80,7 +101,7 @@ describe("enrichUsageCost", () => {
       "openrouter",
       "~deepseek/deepseek-v4-flash-latest"
     );
-    expect(out.cost.total).toBeCloseTo(0.04, 6);
+    expect(out.cost).toBeCloseTo(0.04, 6);
   });
 
   it("prices dated OpenRouter flash snapshots via pattern", () => {
@@ -89,6 +110,6 @@ describe("enrichUsageCost", () => {
       "openrouter",
       "deepseek/deepseek-v4-flash-0731"
     );
-    expect(out.cost.total).toBeCloseTo(0.04, 6);
+    expect(out.cost).toBeCloseTo(0.04, 6);
   });
 });
