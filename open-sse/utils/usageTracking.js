@@ -18,8 +18,17 @@ export const COLORS = {
   cyan: "\x1b[36m"
 };
 
-// Buffer tokens to prevent context errors
-const BUFFER_TOKENS = 2000;
+// Buffer tokens added to reported prompt usage so clients compact before they
+// hit the real context limit. USAGE_BUFFER_TOKENS overrides it; 0 reports the
+// provider's real counts (for clients that do their own context accounting).
+const DEFAULT_BUFFER_TOKENS = 2000;
+
+export function getBufferTokens(env = process.env) {
+  const raw = env.USAGE_BUFFER_TOKENS;
+  if (raw === undefined || raw === "") return DEFAULT_BUFFER_TOKENS;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 ? n : DEFAULT_BUFFER_TOKENS;
+}
 
 // Get HH:MM:SS timestamp
 function getTimeString() {
@@ -33,6 +42,8 @@ function getTimeString() {
  */
 export function addBufferToUsage(usage) {
   if (!usage || typeof usage !== "object") return usage;
+  const BUFFER_TOKENS = getBufferTokens();
+  if (BUFFER_TOKENS === 0) return usage;
 
   const result = { ...usage };
 
